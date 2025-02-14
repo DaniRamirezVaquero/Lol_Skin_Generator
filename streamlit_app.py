@@ -5,15 +5,21 @@ import base64
 from io import BytesIO
 from PIL import Image
 
+# Add at the start of the file, after imports
+if 'is_generating' not in st.session_state:
+    st.session_state.is_generating = False
+
 # Configuración de la página
 st.set_page_config(page_title="LolSkinGenerator", page_icon="🐦‍🔥")
 
 # Título de la página
-st.title("LolSkinGenerator 🐦‍🔥")
-
-
-# Function to check if the required LoRa model is available
 def check_lora_model():
+    """
+    Checks if the required LoRa model "LeagueoflegendsSkins_concept-20" is available.
+
+    Returns:
+        bool: True if the model is available, False otherwise.
+    """
     api_url = "http://127.0.0.1:7860/sdapi/v1/loras"
     try:
         response = requests.get(api_url)
@@ -35,6 +41,12 @@ def check_lora_model():
 
 # Function to check if ADetailer script is available
 def check_adetailer_available():
+    """
+    Checks if the ADetailer script is available.
+
+    Returns:
+        bool: True if the ADetailer script is available, False otherwise.
+    """
     api_url = "http://127.0.0.1:7860/sdapi/v1/extensions"
     try:
         response = requests.get(api_url)
@@ -53,6 +65,12 @@ def check_adetailer_available():
 
 # Function to get available models
 def get_available_models():
+    """
+    Retrieves the list of available models from the Stable Diffusion WebUI API.
+
+    Returns:
+        list: A list of model names.
+    """
     api_url = "http://127.0.0.1:7860/sdapi/v1/sd-models"
     try:
         response = requests.get(api_url)
@@ -70,12 +88,19 @@ def get_available_models():
         return []
     
 def get_samplers():
+    """
+    Retrieves the list of available samplers from the Stable Diffusion WebUI API.
+
+    Returns:
+        list: A list of sampler names.
+    """
     api_url = "http://127.0.0.1:7860/sdapi/v1/samplers"
     try:
         response = requests.get(api_url)
         response.raise_for_status()
         samplers = response.json()
-        return [sampler["name"] for sampler in samplers]
+        # Use the 'name' field which contains the actual internal name used by the API
+        return [(sampler["name"], sampler.get("aliases", [""])[0]) for sampler in samplers]
     except requests.exceptions.ConnectionError:
         st.error("Failed to connect to the API. Please check your internet connection and try again.")
         return []
@@ -88,6 +113,18 @@ def get_samplers():
 
 # Function to call the StableDiffusionWebUI API
 def generate_skin(prompt, model, multiple_poses, enable_hr):
+    """
+    Generates a skin using the Stable Diffusion WebUI API.
+
+    Args:
+        prompt (str): The prompt to generate the skin.
+        model (str): The model to use for generation.
+        multiple_poses (bool): Whether to generate multiple poses.
+        enable_hr (bool): Whether to enable high resolution.
+
+    Returns:
+        dict: The response from the API containing the generated images.
+    """
     api_url = "http://127.0.0.1:7860/sdapi/v1/txt2img"
     width = 768 if multiple_poses else 512
     height = 512 if multiple_poses else 768
@@ -104,7 +141,7 @@ def generate_skin(prompt, model, multiple_poses, enable_hr):
         "height": height,
         "restore_faces": True,
         "tiling": False,
-        "sampler_index": sampler,  # Usar el sampler seleccionado
+        "sampler_index": selected_sampler,  
         "send_images": True,
         "cfg_scale": 8,
         "override_settings": {
@@ -170,12 +207,30 @@ def generate_skin(prompt, model, multiple_poses, enable_hr):
 
 # Function to decode base64 image
 def decode_base64_image(base64_str):
+    """
+    Decodes a base64 encoded image string.
+
+    Args:
+        base64_str (str): The base64 encoded image string.
+
+    Returns:
+        PIL.Image: The decoded image.
+    """
     image_data = base64.b64decode(base64_str)
     image = Image.open(BytesIO(image_data))
     return image
 
 # Function to convert PIL image to bytes
 def image_to_bytes(image):
+    """
+    Converts a PIL image to bytes.
+
+    Args:
+        image (PIL.Image): The image to convert.
+
+    Returns:
+        bytes: The image in bytes.
+    """
     buf = BytesIO()
     image.save(buf, format="PNG")
     byte_im = buf.getvalue()
@@ -183,6 +238,12 @@ def image_to_bytes(image):
 
 # Function to store image in session state
 def store_image_in_session(image):
+    """
+    Stores the generated image in Streamlit's session state.
+
+    Args:
+        image (PIL.Image): The image to store.
+    """
     st.session_state.generated_image = image_to_bytes(image)
 
 # En la sección donde se muestra la interfaz
@@ -196,7 +257,22 @@ if check_lora_model():
 
     if models:
         model = st.selectbox("Select a model:", models, help="Note: The skin generator is only compatible with SD 1.5 models.")
-        sampler = st.selectbox("Select a sampler:", samplers, index=samplers.index("DPM++ SDE"), help="Recommended Samplers: Euler a, DPM++ SDE")
+        
+        # Create a dictionary of display names to internal names
+        sampler_dict = dict(samplers)
+        sampler_display_names = list(sampler_dict.values())
+        
+        # Use the display name for the selectbox
+        selected_sampler_display = st.selectbox(
+            "Select a sampler:", 
+            sampler_display_names, 
+            index=sampler_display_names.index("DPM++ SDE Karras") if "DPM++ SDE Karras" in sampler_display_names else 0,
+            help="Recommended Samplers: Euler a, DPM++ SDE Karras"
+        )
+        
+        # Get the internal name for the API
+        selected_sampler = next(key for key, value in sampler_dict.items() if value == selected_sampler_display)
+
         prompt = st.text_input("Enter a prompt to generate a skin:", help="Examples: - 1girl, blue hair, dress / - 1boy, paladin, full armor, golden, epic skin, black hair,")
         col1, col2 = st.columns([1, 2])
         with col1:
@@ -206,6 +282,10 @@ if check_lora_model():
 
         if st.button("Generate Skin"):
             if prompt:
+                # Clear previous image from session state
+                if "generated_image" in st.session_state:
+                    del st.session_state.generated_image
+                
                 with st.spinner("Generating skin..."):
                     result = generate_skin(prompt, model, multiple_poses, enable_hr)
                     if result and "images" in result and len(result["images"]) > 0:
