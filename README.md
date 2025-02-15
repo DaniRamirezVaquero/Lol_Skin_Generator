@@ -1,23 +1,23 @@
 # LolSkinGenerator 🐦‍🔥
 
-LolSkinGenerator is a Streamlit-based application that generates League of Legends skin concepts using Stable Diffusion models. The application allows users to input prompts and generate high-quality skin images with various customization options.
+LolSkinGenerator is a Streamlit-based application that generates League of Legends skin concepts using Stable Diffusion models. The application allows users to input prompts and generate high-quality skin images with various customization options. 🎨✨
 
-## Features
+## Features 🌟
 
-- Generate League of Legends skin concepts based on user prompts.
-- Support for multiple poses and high-resolution images.
-- Integration with ADetailer extension for enhanced face generation quality.
-- Download generated images directly from the application.
+- Generate League of Legends skin concepts based on user prompts. 🖌️
+- Support for multiple poses and high-resolution images. 📸
+- Integration with ADetailer extension for enhanced face generation quality. 👤
+- Download generated images directly from the application. 📥
 
-## Requirements
+## Requirements 📋
 
-- Python 3.10
-- Streamlit
-- Stable Diffusion WebUI running locally
+- Python 3.10 🐍
+- Streamlit 🌐
+- Stable Diffusion WebUI running locally 🖥️
 - Required LoRa model: [`LeagueoflegendsSkins_concept-20`](https://civitai.com/models/174877/league-of-legends-skin-generator-preview-by-yeiyeiart)
 - Recommended extension: [`ADetailer`](https://github.com/Bing-su/adetailer)
 
-## Installation
+## Installation 🛠️
 
 1. Clone the repository:
     ```sh
@@ -35,11 +35,11 @@ LolSkinGenerator is a Streamlit-based application that generates League of Legen
     docker-compose up --build
     ```
 
-## Usage
+## Usage 🚀
 
 You can run the application either inside the Docker container or directly with Streamlit.
 
-### Running inside Docker
+### Running inside Docker 🐳
 
 1. Ensure that Stable Diffusion WebUI is running locally.
 2. Access the application at `http://localhost:8501`.
@@ -49,7 +49,7 @@ You can run the application either inside the Docker container or directly with 
 6. Click "Generate Skin" and wait for the result.
 7. Download the generated image if desired.
 
-### Running directly with Streamlit
+### Running directly with Streamlit 🌐
 
 1. Ensure that Stable Diffusion WebUI is running locally.
 2. Run the application:
@@ -63,12 +63,36 @@ You can run the application either inside the Docker container or directly with 
 7. Click "Generate Skin" and wait for the result.
 8. Download the generated image if desired.
 
-## Troubleshooting
+## Demonstration 📸
+
+Here are some example prompts and the resulting generated skins:
+
+### Example 1
+- **Model**: [`toonyou_beta6`](https://civitai.com/models/30240/toonyou?modelVersionId=125771)
+- **Sampler**:`DPM++ SDE`
+- **Multiple Poses**: ✅
+- **High Resolution**: ✅
+- **ADetailer**: ✅
+- **Prompt:** 1girl, blue hair, blue dress
+
+<img src="./example_results/Blue%20Girl.png" alt="Blue Girl" width="500"/>
+
+### Example 2
+- **Model**: [`toonyou_beta6`](https://civitai.com/models/30240/toonyou?modelVersionId=125771)
+- **Sampler**:`DPM++ SDE`
+- **Multiple Poses**: ❌
+- **High Resolution**: ✅
+- **ADetailer**: ✅
+- **Prompt:** 1boy, fire sword, shield, soldier
+
+<img src="./example_results/Soldier.png" alt="Soldier" width="500"/>
+
+## Troubleshooting 🛠️
 
 - If the application fails to connect to the API, ensure that Stable Diffusion WebUI is running and accessible.
 - If no models are found, make sure you have placed the required models in the correct folders.
 - For better face generation quality, install the ADetailer extension.
 
-## License
+## License 📄
 
 This project is licensed under the MIT License.

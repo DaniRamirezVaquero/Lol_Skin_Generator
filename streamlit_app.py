@@ -1,13 +1,18 @@
 import streamlit as st
 import requests
-import os
 import base64
 from io import BytesIO
 from PIL import Image
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 # Add at the start of the file, after imports
 if 'is_generating' not in st.session_state:
     st.session_state.is_generating = False
+
+# Añadir al inicio del archivo, junto con las otras variables de session_state
+if 'phase_counter' not in st.session_state:
+    st.session_state.phase_counter = 0
 
 # Configuración de la página
 st.set_page_config(page_title="LolSkinGenerator", page_icon="🐦‍🔥")
@@ -99,8 +104,8 @@ def get_samplers():
         response = requests.get(api_url)
         response.raise_for_status()
         samplers = response.json()
-        # Use the 'name' field which contains the actual internal name used by the API
-        return [(sampler["name"], sampler.get("aliases", [""])[0]) for sampler in samplers]
+        # Return only the internal names used by the API
+        return [sampler["name"] for sampler in samplers]
     except requests.exceptions.ConnectionError:
         st.error("Failed to connect to the API. Please check your internet connection and try again.")
         return []
@@ -131,7 +136,6 @@ def generate_skin(prompt, model, multiple_poses, enable_hr):
     additional_prompts = "(multiple views)" if multiple_poses else ""
     lora = "<lora:LeagueoflegendsSkins_concept:0.7>"
     negative_prompt = "(low quality, worst quality:1.2), (normal quality:1.2),(worst quality, low quality, letterboxed), (deformed face), (ugly face)"
-    
     # Base payload
     payload = {
         "prompt": f"{additional_prompts}, (LolPreview:1.5), {prompt}, (dynamic pose:1.2), (from above:1), (full body:1.2), (zooming out:1.2), (masterpiece:1.2), (best quality, highest quality), (ultra-detailed), (8k, 4k, intricate), {lora}",
@@ -141,7 +145,8 @@ def generate_skin(prompt, model, multiple_poses, enable_hr):
         "height": height,
         "restore_faces": True,
         "tiling": False,
-        "sampler_index": selected_sampler,  
+        "sampler_index": selected_sampler,
+        "scheduler": "Automatic",
         "send_images": True,
         "cfg_scale": 8,
         "override_settings": {
@@ -246,6 +251,46 @@ def store_image_in_session(image):
     """
     st.session_state.generated_image = image_to_bytes(image)
 
+# Add this function after the other helper functions and before the interface code
+
+def check_progress():
+    """
+    Checks the generation progress using the progress endpoint.
+
+    Returns:
+        tuple: (progress percentage, current preview image if available, phase info)
+    """
+    api_url = "http://127.0.0.1:7860/sdapi/v1/progress"
+    try:
+        response = requests.get(api_url)
+        response.raise_for_status()
+        data = response.json()
+        
+        progress = data.get("progress", 0) * 100
+        current_image = data.get("current_image", "")
+        
+        # Si llegamos al 100%, incrementamos el contador de fases
+        if progress >= 99.9 and hasattr(st.session_state, 'last_progress'):
+            if st.session_state.last_progress < 99.9:
+                st.session_state.phase_counter += 1
+        
+        # Guardamos el progreso actual para la siguiente comparación
+        st.session_state.last_progress = progress
+        
+        # Determinamos la fase actual basándonos en el contador
+        if check_adetailer_available():
+            phase = {
+                0: "Generating base image",
+                1: "Detecting and enhancing faces",
+                2: "Perfecting facial details"
+            }.get(st.session_state.phase_counter, "Finishing up...")
+        else:
+            phase = "Generating image"
+            
+        return progress, current_image, phase
+    except Exception as e:
+        return 0, None, "Initializing..."
+
 # En la sección donde se muestra la interfaz
 if check_lora_model():
     models = get_available_models()
@@ -258,20 +303,13 @@ if check_lora_model():
     if models:
         model = st.selectbox("Select a model:", models, help="Note: The skin generator is only compatible with SD 1.5 models.")
         
-        # Create a dictionary of display names to internal names
-        sampler_dict = dict(samplers)
-        sampler_display_names = list(sampler_dict.values())
-        
-        # Use the display name for the selectbox
-        selected_sampler_display = st.selectbox(
+        # Use samplers directly without aliases
+        selected_sampler = st.selectbox(
             "Select a sampler:", 
-            sampler_display_names, 
-            index=sampler_display_names.index("DPM++ SDE Karras") if "DPM++ SDE Karras" in sampler_display_names else 0,
+            samplers,
+            index=samplers.index("DPM++ SDE Karras") if "DPM++ SDE Karras" in samplers else 0,
             help="Recommended Samplers: Euler a, DPM++ SDE Karras"
         )
-        
-        # Get the internal name for the API
-        selected_sampler = next(key for key, value in sampler_dict.items() if value == selected_sampler_display)
 
         prompt = st.text_input("Enter a prompt to generate a skin:", help="Examples: - 1girl, blue hair, dress / - 1boy, paladin, full armor, golden, epic skin, black hair,")
         col1, col2 = st.columns([1, 2])
@@ -282,23 +320,63 @@ if check_lora_model():
 
         if st.button("Generate Skin"):
             if prompt:
-                # Clear previous image from session state
                 if "generated_image" in st.session_state:
                     del st.session_state.generated_image
                 
-                with st.spinner("Generating skin..."):
-                    result = generate_skin(prompt, model, multiple_poses, enable_hr)
-                    if result and "images" in result and len(result["images"]) > 0:
-                        image = decode_base64_image(result["images"][0])
-                        store_image_in_session(image)
-                    else:
-                        st.error("Failed to generate skin. Please try again.")
+                # Reiniciamos el contador de fases
+                st.session_state.phase_counter = 0
+                st.session_state.last_progress = 0
+                
+                # Crear un contenedor principal para los elementos de progreso
+                with st.container():
+                    status_placeholder = st.empty()
+                    progress_bar = st.progress(0)
+                    preview_placeholder = st.empty()
+
+                # Iniciamos la generación en un thread separado
+                with ThreadPoolExecutor() as executor:
+                    future = executor.submit(generate_skin, prompt, model, multiple_poses, enable_hr)
+                    
+                    # Mientras la imagen se genera, actualizamos el progreso
+                    while not future.done():
+                        progress, current_preview, phase = check_progress()
+                        with status_placeholder:
+                            st.text(f"{phase} - {int(progress)}%")
+                        progress_bar.progress(int(progress))
+                        
+                        if current_preview:
+                            try:
+                                preview_img = decode_base64_image(current_preview)
+                                with preview_placeholder:
+                                    st.image(
+                                        preview_img, 
+                                        caption=f"Generation in progress... ({phase})",
+                                        use_container_width=True
+                                    )
+                            except:
+                                pass
+                        
+                        time.sleep(0.1)
+                    
+                    # Obtenemos el resultado cuando termine
+                    result = future.result()
+                
+                # Limpiamos los elementos de progreso
+                progress_bar.empty()
+                preview_placeholder.empty()
+                status_placeholder.empty()
+                
+                if result and "images" in result and len(result["images"]) > 0:
+                    image = decode_base64_image(result["images"][0])
+                    store_image_in_session(image)
+                else:
+                    st.error("Failed to generate skin. Please try again.")
             else:
                 st.warning("Please enter a prompt to generate a skin.")
         
         # Display the stored image if it exists
         if "generated_image" in st.session_state:
-            st.image(st.session_state.generated_image, caption="Generated Skin")
+            st.image(st.session_state.generated_image, caption="Generated Skin", use_container_width=True)
             st.download_button(
                 label="Download Image",
                 data=st.session_state.generated_image,
