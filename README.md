@@ -40,7 +40,7 @@ LolSkinGenerator is a Streamlit-based application that generates League of Legen
 You can run the application either inside the Docker container or directly with Streamlit.
 
 ## Interface 🖥️
-<img src="./example_results/interface.png" alt="Interface" width="600"/>
+<img src="./example_results/Interface.png" alt="Interface" width="600"/>
 
 ### Running inside Docker 🐳
 
