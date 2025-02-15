@@ -28,8 +28,10 @@ LolSkinGenerator is a Streamlit-based application that generates League of Legen
 2. Download the required LoRa model from [CivitAI](https://civitai.com/api/download/models/196344?type=Model&format=SafeTensor) and place it in your `models/Lora` folder.
 
 3. (Optional) Install the ADetailer extension in your Stable Diffusion WebUI for better face generation quality.
+   
+5. Run StableDiffusion locally.
 
-4. Build and run the Docker container:
+6. Build and run the Docker container:
     ```sh
     cd docker
     docker-compose up --build
@@ -37,7 +39,7 @@ LolSkinGenerator is a Streamlit-based application that generates League of Legen
 
 ## Usage 🚀
 
-You can run the application either inside the Docker container or directly with Streamlit.
+You can run the application either inside the Docker container or directly with after installing the requirements Streamlit.
 
 ## Interface 🖥️
 <img src="./example_results/Interface.png" alt="Interface" width="600"/>
