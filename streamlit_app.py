@@ -17,6 +17,8 @@ if 'phase_counter' not in st.session_state:
 # Configuración de la página
 st.set_page_config(page_title="LolSkinGenerator", page_icon="🐦‍🔥")
 
+st.title("LoL Skin Generator 🐦‍🔥")
+
 # Título de la página
 def check_lora_model():
     """
